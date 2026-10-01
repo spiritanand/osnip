@@ -55,7 +55,7 @@ You call it as `store.add(file, fileExtension: "webp")`. The third argument has 
 
 ### `struct` and `enum`
 
-A `struct` groups values and the functions that work on them. Most types here are structs: `CaptureStore`, `Clipboard`, `WebPEncoder`, `Snip`.
+A `struct` groups values and the functions that work on them. Most types here are structs: `CaptureStore`, `Clipboard`, `WebPEncoder`, `Snip`. A struct is a value: passing it along hands over a copy.
 
 An `enum` is a value that is exactly one of a fixed list of cases. `Outcome` is the best example:
 
@@ -77,10 +77,10 @@ An enum with no cases, like `ByteCount` or `Shell`, is used as a plain namespace
 A type followed by `?` may hold a value or nothing (`nil`). `URL?` is "a URL or nothing". Swift will not let you use an optional as if it were always there. You unwrap it first:
 
 ```swift
-guard let cwebp = locateEncoder() else { return nil }
+guard let originalBytes = ImageFile.byteCount(of: original) else { return .captureFailed }
 ```
 
-`guard let` says: if there is a value, call it `cwebp` and continue; otherwise leave. Related tools you will see are `if let`, `??` (use this fallback when nil), and `?.` (keep going only if there is a value).
+`guard let` says: if there is a value, call it `originalBytes` and continue; otherwise leave. When the new name would be the same as the old one you can write it once: `guard let cwebp else { return nil }`. Related tools you will see are `if let`, `??` (use this fallback when nil), and `?.` (keep going only if there is a value).
 
 ### Errors: `throws`, `try`, `try?`
 
@@ -105,6 +105,27 @@ Functions that can only succeed or fail, with nothing useful to say about why, s
 ### `guard` and early exit
 
 `guard condition else { leave }` keeps the main path of a function unindented. The checks sit at the top and the work follows.
+
+### `class` and `deinit`
+
+osnip has one `class`, `RunLock`. A class is shared rather than copied, and it can have a `deinit`: code that runs when the last reference to the object goes away. `RunLock` uses it to give the lock back.
+
+```swift
+deinit {
+    // flock belongs to the open file, so a copy held by a child mid-spawn would keep the lock after close.
+    flock(descriptor, LOCK_UN)
+    close(descriptor)
+}
+```
+
+Swift may destroy an object right after its last use, which can be before the end of the scope. Nothing uses the lock after it is taken, so `Snip.run()` keeps it alive on purpose:
+
+```swift
+case let .acquired(lock):
+    return withExtendedLifetime(lock) { runHoldingLock() }
+```
+
+`withExtendedLifetime` guarantees the lock exists until the closure has finished, which is until the run has produced its outcome.
 
 ### `defer`
 
@@ -178,13 +199,13 @@ All paths are under `Sources/OsnipCore/` unless noted.
 
 **`Invocation.swift`** maps arguments to intent: no arguments means snip, `--version` and `--help` print, anything else is rejected with `EX_USAGE`, the conventional exit code 64 for a command used wrongly.
 
-**`Snip.swift`** is the conductor. `run()` takes the lock, creates a temporary work directory, calls the capture, and branches on the result. `publishCapture` tries to optimize; `optimize` returns nothing when any step of it fails, and then the original PNG is copied instead. `publish` stores a file, puts it on the clipboard and prunes. Every path ends in an `Outcome`. `Snip.live()` builds the real configuration.
+**`Snip.swift`** is the conductor. `run()` takes the lock and holds it while `runHoldingLock()` creates a temporary work directory, calls the capture, and branches on the result. `publishCapture` tries to optimize; `optimize` returns nothing when any step of it fails, and then the original PNG is copied instead. `publish` stores a file, puts it on the clipboard and prunes. Every path ends in an `Outcome`. `Snip.live()` builds the real configuration.
 
 **`Outcome.swift`** lists everything a run can end as, with the exact line Raycast shows and the exit code. The wording lives in this one place.
 
 **`ByteCount.swift`** formats sizes the way Finder does: `68 KB`, `1.4 MB`.
 
-**`RunLock.swift`** allows one run per user at a time, using an exclusive lock on a file in the temporary directory. A second run sees the lock and exits quietly. The kernel releases the lock when the process ends, even if it crashes.
+**`RunLock.swift`** allows one run per user at a time, using an exclusive lock on a file in the temporary directory. A second run sees the lock and exits quietly. The lock is given back when the `RunLock` object is destroyed at the end of the run. If the process crashes instead, the kernel releases it.
 
 **`ScreenCapture.swift`** runs `screencapture -i -o -t png <file>` and classifies what happened: a complete PNG means captured; no file, no error text and a normal exit means the user pressed Escape; anything else is a failure.
 

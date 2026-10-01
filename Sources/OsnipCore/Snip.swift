@@ -5,7 +5,7 @@ public struct Snip {
     public var locateEncoder: () -> URL?
     public var normalizer: ColorNormalizer
     public var budgetBytes: Int
-    public var outputDirectory: URL
+    public var store: CaptureStore
     public var clipboard: Clipboard
 
     public init(
@@ -13,14 +13,14 @@ public struct Snip {
         locateEncoder: @escaping () -> URL?,
         normalizer: ColorNormalizer,
         budgetBytes: Int,
-        outputDirectory: URL,
+        store: CaptureStore,
         clipboard: Clipboard
     ) {
         self.capture = capture
         self.locateEncoder = locateEncoder
         self.normalizer = normalizer
         self.budgetBytes = budgetBytes
-        self.outputDirectory = outputDirectory
+        self.store = store
         self.clipboard = clipboard
     }
 
@@ -30,8 +30,7 @@ public struct Snip {
             locateEncoder: { ToolLocator.locate("cwebp") },
             normalizer: ColorNormalizer(),
             budgetBytes: WebPEncoder.defaultBudgetBytes,
-            outputDirectory: FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent("osnip", isDirectory: true),
+            store: CaptureStore(),
             clipboard: Clipboard()
         )
     }
@@ -58,8 +57,7 @@ public struct Snip {
     private func publishCapture(_ original: URL, workDirectory: URL) -> Outcome {
         guard let originalBytes = try? ImageFile.byteCount(of: original) else { return .captureFailed }
         guard let optimized = try? optimize(original, in: workDirectory),
-              let published = try? moveIntoOutputDirectory(optimized.url),
-              (try? clipboard.publish(published, as: .webP)) != nil
+              publish(optimized.url, fileExtension: "webp", as: .webP)
         else { return .clipboardFailed }
         return .copied(originalBytes: originalBytes, optimizedBytes: optimized.byteCount)
     }
@@ -71,10 +69,11 @@ public struct Snip {
         return try WebPEncoder(cwebp: cwebp, budgetBytes: budgetBytes).encode(normalized, in: workDirectory)
     }
 
-    private func moveIntoOutputDirectory(_ file: URL) throws -> URL {
-        try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
-        let destination = outputDirectory.appendingPathComponent("osnip-\(UUID().uuidString).webp")
-        try FileManager.default.moveItem(at: file, to: destination)
-        return destination
+    private func publish(_ file: URL, fileExtension: String, as imageType: Clipboard.ImageType) -> Bool {
+        guard let stored = try? store.add(file, fileExtension: fileExtension),
+              (try? clipboard.publish(stored, as: imageType)) != nil
+        else { return false }
+        store.prune(keeping: stored)
+        return true
     }
 }

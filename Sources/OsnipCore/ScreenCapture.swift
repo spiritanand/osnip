@@ -16,9 +16,12 @@ public struct ScreenCapture: Sendable {
     }
 
     public func captureInteractively(to destination: URL) -> CaptureResult {
-        guard (try? Shell.run(tool, ["-i", "-o", "-t", "png", destination.path])) != nil else {
+        guard let result = try? Shell.run(tool, ["-i", "-o", "-t", "png", destination.path]) else {
             return .failed
         }
-        return FileManager.default.fileExists(atPath: destination.path) ? .captured : .cancelled
+        if ImageFile.isCompletePNG(destination) { return .captured }
+        let wroteNothing = !FileManager.default.fileExists(atPath: destination.path)
+        let matchesEscapeSignature = wroteNothing && result.standardError.isEmpty && result.exitedNormally
+        return matchesEscapeSignature ? .cancelled : .failed
     }
 }

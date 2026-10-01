@@ -3,11 +3,17 @@ import Foundation
 import Testing
 @testable import OsnipCore
 
+final class CallCounter {
+    private(set) var count = 0
+    func record() { count += 1 }
+}
+
 struct SnipTests {
     let directory: URL
     let storeDirectory: URL
     let fixture: URL
     let pasteboard: NSPasteboard
+    let permissionPrompts = CallCounter()
 
     init() throws {
         directory = try Fixture.temporaryDirectory()
@@ -25,7 +31,8 @@ struct SnipTests {
         normalizer: ColorNormalizer = ColorNormalizer(),
         storeDirectory: URL? = nil,
         keptCaptures: Int = CaptureStore.defaultKeptCaptures,
-        budgetBytes: Int = WebPEncoder.defaultBudgetBytes
+        budgetBytes: Int = WebPEncoder.defaultBudgetBytes,
+        screenRecordingGranted: Bool = true
     ) -> Snip {
         Snip(
             capture: { [fixture] destination in
@@ -36,7 +43,9 @@ struct SnipTests {
             normalizer: normalizer,
             budgetBytes: budgetBytes,
             store: CaptureStore(directory: storeDirectory ?? self.storeDirectory, keptCaptures: keptCaptures),
-            clipboard: Clipboard(pasteboard: pasteboard)
+            clipboard: Clipboard(pasteboard: pasteboard),
+            screenRecordingIsGranted: { screenRecordingGranted },
+            promptForScreenRecording: { [permissionPrompts] in permissionPrompts.record() }
         )
     }
 
@@ -106,12 +115,20 @@ struct SnipTests {
         #expect(storedFiles().isEmpty)
     }
 
-    @Test func aFailedCaptureIsReported() {
+    @Test func aFailedCaptureWithoutPermissionPromptsOnce() {
         defer { pasteboard.releaseGlobally() }
         let changeCount = pasteboard.changeCount
 
-        #expect(snip(capturing: .failed).run() == .captureFailed)
+        #expect(snip(capturing: .failed, screenRecordingGranted: false).run() == .screenRecordingDenied)
+        #expect(permissionPrompts.count == 1)
         #expect(pasteboard.changeCount == changeCount)
+    }
+
+    @Test func aFailedCaptureWithPermissionDoesNotPrompt() {
+        defer { pasteboard.releaseGlobally() }
+
+        #expect(snip(capturing: .failed, screenRecordingGranted: true).run() == .captureFailed)
+        #expect(permissionPrompts.count == 0)
     }
 
     @Test func aMissingEncoderCopiesNothing() {

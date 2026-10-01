@@ -7,6 +7,8 @@ public struct Snip {
     public var budgetBytes: Int
     public var store: CaptureStore
     public var clipboard: Clipboard
+    public var screenRecordingIsGranted: () -> Bool
+    public var promptForScreenRecording: () -> Void
 
     public init(
         capture: @escaping (URL) -> CaptureResult,
@@ -14,7 +16,9 @@ public struct Snip {
         normalizer: ColorNormalizer,
         budgetBytes: Int,
         store: CaptureStore,
-        clipboard: Clipboard
+        clipboard: Clipboard,
+        screenRecordingIsGranted: @escaping () -> Bool,
+        promptForScreenRecording: @escaping () -> Void
     ) {
         self.capture = capture
         self.locateEncoder = locateEncoder
@@ -22,6 +26,8 @@ public struct Snip {
         self.budgetBytes = budgetBytes
         self.store = store
         self.clipboard = clipboard
+        self.screenRecordingIsGranted = screenRecordingIsGranted
+        self.promptForScreenRecording = promptForScreenRecording
     }
 
     public static func live() -> Snip {
@@ -31,7 +37,9 @@ public struct Snip {
             normalizer: ColorNormalizer(),
             budgetBytes: WebPEncoder.defaultBudgetBytes,
             store: CaptureStore(),
-            clipboard: Clipboard()
+            clipboard: Clipboard(),
+            screenRecordingIsGranted: ScreenRecordingPermission.isGranted,
+            promptForScreenRecording: ScreenRecordingPermission.requestAndOpenSettings
         )
     }
 
@@ -48,6 +56,10 @@ public struct Snip {
         case .cancelled:
             return .cancelled
         case .failed:
+            guard screenRecordingIsGranted() else {
+                promptForScreenRecording()
+                return .screenRecordingDenied
+            }
             return .captureFailed
         case .captured:
             return publishCapture(original, workDirectory: workDirectory)

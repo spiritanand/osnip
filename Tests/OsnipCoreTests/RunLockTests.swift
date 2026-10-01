@@ -29,6 +29,20 @@ struct RunLockTests {
         #expect(isAcquired(RunLock.acquire(at: lockFile)))
     }
 
+    private func descriptorCopyOutlivingItsLock() throws -> Int32 {
+        guard case let .acquired(lock) = RunLock.acquire(at: lockFile) else {
+            throw CocoaError(.fileLocking)
+        }
+        return dup(lock.descriptor)
+    }
+
+    @Test func lettingGoReleasesTheLockEvenWhileACopyOfItsDescriptorIsStillOpen() throws {
+        let copyAChildProcessWouldInherit = try descriptorCopyOutlivingItsLock()
+        defer { close(copyAChildProcessWouldInherit) }
+
+        #expect(isAcquired(RunLock.acquire(at: lockFile)))
+    }
+
     @Test func aLeftoverLockFileFromAnEarlierRunDoesNotBlock() throws {
         try Data().write(to: lockFile)
 

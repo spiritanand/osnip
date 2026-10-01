@@ -11,13 +11,15 @@ final class RunLock {
         FileManager.default.temporaryDirectory.appendingPathComponent("osnip.lock")
     }
 
-    private let descriptor: Int32
+    let descriptor: Int32
 
     private init(descriptor: Int32) {
         self.descriptor = descriptor
     }
 
     deinit {
+        // A child process being spawned briefly holds a copy of the descriptor, and closing alone would leave the lock held until that copy closes.
+        flock(descriptor, LOCK_UN)
         close(descriptor)
     }
 

@@ -153,6 +153,7 @@ A `URL` says where something is. In osnip it is nearly always a file on disk, wr
 
 ```swift
 guard let imageBytes = try? Data(contentsOf: file) else { return false }
+let item = NSPasteboardItem()
 item.setString(file.absoluteString, forType: .fileURL)
 item.setData(imageBytes, forType: imageType.pasteboardType)
 ```

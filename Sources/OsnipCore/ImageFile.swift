@@ -4,11 +4,8 @@ import ImageIO
 enum ImageFile {
     static let pngTrailer = Data([0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82])
 
-    static func byteCount(of url: URL) throws -> Int {
-        guard let byteCount = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize else {
-            throw CocoaError(.fileReadUnknown)
-        }
-        return byteCount
+    static func byteCount(of url: URL) -> Int? {
+        (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
     }
 
     static func pixelSize(of url: URL) -> (width: Int, height: Int)? {

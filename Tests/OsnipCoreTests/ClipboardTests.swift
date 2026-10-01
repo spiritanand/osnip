@@ -21,7 +21,7 @@ struct ClipboardTests {
         let bytes = Data("image bytes".utf8)
         try bytes.write(to: file)
 
-        try Clipboard(pasteboard: pasteboard).publish(file, as: imageType)
+        #expect(Clipboard(pasteboard: pasteboard).publish(file, as: imageType))
 
         let item = try #require(pasteboard.pasteboardItems?.first)
         #expect(pasteboard.pasteboardItems?.count == 1)
@@ -37,7 +37,7 @@ struct ClipboardTests {
         let file = spaced.appendingPathComponent("capture 1.webp")
         try Data("image bytes".utf8).write(to: file)
 
-        try Clipboard(pasteboard: pasteboard).publish(file, as: .webP)
+        #expect(Clipboard(pasteboard: pasteboard).publish(file, as: .webP))
 
         let published = try #require(pasteboard.pasteboardItems?.first?.string(forType: .fileURL))
         #expect(URL(string: published)?.path == file.path)
@@ -49,9 +49,7 @@ struct ClipboardTests {
         pasteboard.setString("previous", forType: .string)
         let changeCount = pasteboard.changeCount
 
-        #expect(throws: (any Error).self) {
-            try Clipboard(pasteboard: pasteboard).publish(directory.appendingPathComponent("missing.webp"), as: .webP)
-        }
+        #expect(!Clipboard(pasteboard: pasteboard).publish(directory.appendingPathComponent("missing.webp"), as: .webP))
         #expect(pasteboard.changeCount == changeCount)
         #expect(pasteboard.string(forType: .string) == "previous")
     }

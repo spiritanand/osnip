@@ -38,12 +38,7 @@ struct WebPEncoder {
     static let lossyQualityFloor = 60
 
     let cwebp: URL
-    let budgetBytes: Int
-
-    init(cwebp: URL, budgetBytes: Int = WebPEncoder.defaultBudgetBytes) {
-        self.cwebp = cwebp
-        self.budgetBytes = budgetBytes
-    }
+    var budgetBytes = WebPEncoder.defaultBudgetBytes
 
     struct RaceReport {
         let winner: EncodedImage?
@@ -97,7 +92,7 @@ private struct CandidateRun {
         guard let process else { return nil }
         process.waitUntilExit()
         guard process.terminationReason == .exit, process.terminationStatus == 0 else { return nil }
-        return try? ImageFile.byteCount(of: output)
+        return ImageFile.byteCount(of: output)
     }
 
     func stopAndReap() {

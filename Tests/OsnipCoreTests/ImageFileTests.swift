@@ -13,7 +13,7 @@ struct ImageFileTests {
     }
 
     @Test func reportsTheByteCountAndPixelSizeOfAnImage() throws {
-        #expect(try ImageFile.byteCount(of: png) == (try Data(contentsOf: png)).count)
+        #expect(ImageFile.byteCount(of: png) == (try Data(contentsOf: png)).count)
         #expect(ImageFile.pixelSize(of: png)?.width == 320)
         #expect(ImageFile.pixelSize(of: png)?.height == 240)
         #expect(ImageFile.isCompletePNG(png))
@@ -38,7 +38,7 @@ struct ImageFileTests {
     @Test func aMissingFileHasNoByteCount() {
         let missing = directory.appendingPathComponent("missing.png")
 
-        #expect(throws: (any Error).self) { try ImageFile.byteCount(of: missing) }
+        #expect(ImageFile.byteCount(of: missing) == nil)
         #expect(!ImageFile.isCompletePNG(missing))
     }
 }

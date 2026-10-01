@@ -13,6 +13,7 @@ struct RaycastScriptTests {
         #expect(try Shell.run(URL(fileURLWithPath: "/bin/bash"), ["-n", script.path]).succeeded)
         #expect(FileManager.default.isExecutableFile(atPath: script.path))
         #expect(source.contains("# @raycast.schemaVersion 1\n"))
+        #expect(source.contains("# @raycast.title Optimized Snip\n"))
         #expect(source.contains("# @raycast.mode silent\n"))
     }
 }

@@ -15,12 +15,30 @@ struct WebPEncoderTests {
         return try Candidate.inPreferenceOrder.enumerated().map { index, candidate in
             let output = directory.appendingPathComponent("alone-\(index).webp")
             let arguments = encoder.arguments(for: candidate, source: source, sourcePixelWidth: sourceWidth, output: output)
-            return try Shell.run(encoder.cwebp, arguments).succeeded ? try ImageFile.byteCount(of: output) : nil
+            return try Shell.run(encoder.cwebp, arguments).succeeded ? ImageFile.byteCount(of: output) : nil
         }
     }
 
     private func expectEveryStartedProcessExited(_ report: WebPEncoder.RaceReport) {
         #expect(report.startedProcesses.allSatisfy { !$0.isRunning })
+    }
+
+    @Test(arguments: [
+        (0, ["-quiet", "-mt", "-lossless", "-z", "6"]),
+        (1, ["-quiet", "-mt", "-size", "92000", "-qrange", "60", "100", "-pass", "6", "-m", "4", "-sharp_yuv"]),
+        (2, ["-quiet", "-mt", "-lossless", "-z", "6", "-resize", "400", "0"]),
+        (3, ["-quiet", "-mt", "-size", "92000", "-qrange", "60", "100", "-pass", "6", "-m", "4", "-sharp_yuv", "-resize", "400", "0"]),
+    ])
+    func runsCwebpWithTheSpecifiedOptions(candidateIndex: Int, options: [String]) {
+        let source = URL(fileURLWithPath: "/captures/source.png")
+        let output = URL(fileURLWithPath: "/captures/output.webp")
+        let encoder = WebPEncoder(cwebp: URL(fileURLWithPath: "/unused/cwebp"))
+
+        let arguments = encoder.arguments(
+            for: Candidate.inPreferenceOrder[candidateIndex], source: source, sourcePixelWidth: 800, output: output
+        )
+
+        #expect(arguments == options + [source.path, "-o", output.path])
     }
 
     @Test func aFlatCaptureResolvesToFullResolutionLossless() throws {
@@ -33,7 +51,7 @@ struct WebPEncoderTests {
         let winner = try #require(report.winner)
         #expect(winner.url.lastPathComponent == "candidate-0.webp")
         #expect(winner.byteCount <= WebPEncoder.defaultBudgetBytes)
-        #expect(winner.byteCount == (try ImageFile.byteCount(of: winner.url)))
+        #expect(winner.byteCount == ImageFile.byteCount(of: winner.url))
         #expect(try Fixture.isWebP(winner.url))
         #expect(ImageFile.pixelSize(of: winner.url)?.width == 800)
         #expect(ImageFile.pixelSize(of: winner.url)?.height == 600)

@@ -1,9 +1,5 @@
 import AppKit
 
-enum ClipboardError: Error {
-    case writeRejected
-}
-
 struct Clipboard {
     enum ImageType {
         case webP
@@ -24,18 +20,14 @@ struct Clipboard {
         }
     }
 
-    let pasteboard: NSPasteboard
+    var pasteboard = NSPasteboard.general
 
-    init(pasteboard: NSPasteboard = .general) {
-        self.pasteboard = pasteboard
-    }
-
-    func publish(_ file: URL, as imageType: ImageType) throws {
-        let imageBytes = try Data(contentsOf: file)
+    func publish(_ file: URL, as imageType: ImageType) -> Bool {
+        guard let imageBytes = try? Data(contentsOf: file) else { return false }
         let item = NSPasteboardItem()
         item.setString(file.absoluteString, forType: .fileURL)
         item.setData(imageBytes, forType: imageType.pasteboardType)
         pasteboard.clearContents()
-        guard pasteboard.writeObjects([item]) else { throw ClipboardError.writeRejected }
+        return pasteboard.writeObjects([item])
     }
 }

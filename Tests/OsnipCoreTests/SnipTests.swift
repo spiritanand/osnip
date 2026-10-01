@@ -15,6 +15,7 @@ struct SnipTests {
     let fixture: URL
     let pasteboard: NSPasteboard
     let captureCalls = CallCounter()
+    let permissionChecks = CallCounter()
     let permissionPrompts = CallCounter()
 
     init() throws {
@@ -49,7 +50,10 @@ struct SnipTests {
             store: CaptureStore(directory: storeDirectory ?? self.storeDirectory, keptCaptures: keptCaptures),
             clipboard: Clipboard(pasteboard: pasteboard),
             lockFile: lockFile,
-            screenRecordingIsGranted: { screenRecordingGranted },
+            screenRecordingIsGranted: { [permissionChecks] in
+                permissionChecks.record()
+                return screenRecordingGranted
+            },
             promptForScreenRecording: { [permissionPrompts] in permissionPrompts.record() }
         )
     }
@@ -76,26 +80,21 @@ struct SnipTests {
         #expect(storedFiles().count == 1)
         #expect(stored.pathExtension == "webp")
         #expect(try Fixture.isWebP(stored))
-        #expect(originalBytes == (try ImageFile.byteCount(of: fixture)))
-        #expect(optimizedBytes == (try ImageFile.byteCount(of: stored)))
+        #expect(originalBytes == ImageFile.byteCount(of: fixture))
+        #expect(optimizedBytes == ImageFile.byteCount(of: stored))
         #expect(optimizedBytes <= WebPEncoder.defaultBudgetBytes)
         #expect(publishedFileURL()?.lastPathComponent == stored.lastPathComponent)
         #expect(pasteboard.pasteboardItems?.first?.data(forType: NSPasteboard.PasteboardType("org.webmproject.webp")) == (try Data(contentsOf: stored)))
         #expect(outcome.hudLine?.wholeMatch(of: /Copied · \d+ KB → \d+ KB \(−\d+%\)/) != nil)
+        #expect(permissionChecks.count == 0)
     }
 
     @Test func aDisplayP3CaptureIsConvertedToSRGBBeforeEncoding() throws {
         defer { pasteboard.releaseGlobally() }
         let displayP3Color = RGB(red: 204, green: 102, blue: 77)
-        let displayP3Capture = directory.appendingPathComponent("display-p3.png")
-        try Fixture.solid(displayP3Color, colorSpaceName: CGColorSpace.displayP3, width: 64, height: 48, at: displayP3Capture)
-        var capturingDisplayP3 = snip(capturing: .captured)
-        capturingDisplayP3.capture = { destination in
-            try? FileManager.default.copyItem(at: displayP3Capture, to: destination)
-            return .captured
-        }
+        try Fixture.solid(displayP3Color, colorSpaceName: CGColorSpace.displayP3, width: 64, height: 48, at: fixture)
 
-        _ = capturingDisplayP3.run()
+        _ = snip(capturing: .captured).run()
 
         let stored = try Fixture.storedPixel(of: try #require(storedFiles().first), x: 32, y: 24).color
         #expect(Fixture.channelsAreClose(stored, try Fixture.sRGBEquivalent(ofDisplayP3: displayP3Color)))
@@ -135,6 +134,7 @@ struct SnipTests {
         #expect(snip(capturing: .cancelled).run() == .cancelled)
         #expect(pasteboard.changeCount == changeCount)
         #expect(storedFiles().isEmpty)
+        #expect(permissionChecks.count == 0)
     }
 
     @Test func aFailedCaptureWithoutPermissionPromptsOnce() {

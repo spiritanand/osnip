@@ -4,13 +4,8 @@ struct CaptureStore {
     static let defaultKeptCaptures = 50
     static let namePrefix = "osnip-"
 
-    let directory: URL
-    let keptCaptures: Int
-
-    init(directory: URL = CaptureStore.defaultDirectory, keptCaptures: Int = CaptureStore.defaultKeptCaptures) {
-        self.directory = directory
-        self.keptCaptures = keptCaptures
-    }
+    var directory = CaptureStore.defaultDirectory
+    var keptCaptures = CaptureStore.defaultKeptCaptures
 
     static var defaultDirectory: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]

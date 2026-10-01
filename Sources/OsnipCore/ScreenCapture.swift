@@ -9,11 +9,7 @@ enum CaptureResult {
 struct ScreenCapture {
     static let systemTool = URL(fileURLWithPath: "/usr/sbin/screencapture")
 
-    let tool: URL
-
-    init(tool: URL = ScreenCapture.systemTool) {
-        self.tool = tool
-    }
+    var tool = ScreenCapture.systemTool
 
     func captureInteractively(to destination: URL) -> CaptureResult {
         guard let result = try? Shell.run(tool, ["-i", "-o", "-t", "png", destination.path]) else {

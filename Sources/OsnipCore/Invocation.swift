@@ -1,4 +1,4 @@
-public enum Invocation: Equatable, Sendable {
+public enum Invocation: Sendable {
     case snip
     case printVersion
     case printUsage

@@ -60,7 +60,7 @@ public struct Snip {
     }
 
     private func publishCapture(_ original: URL, workDirectory: URL) -> Outcome {
-        guard let originalBytes = try? ImageFile.byteCount(of: original) else { return .captureFailed }
+        guard let originalBytes = ImageFile.byteCount(of: original) else { return .captureFailed }
         guard let optimized = optimize(original, in: workDirectory) else {
             return publish(original, as: .png) ? .copiedOriginal : .clipboardFailed
         }
@@ -77,7 +77,7 @@ public struct Snip {
 
     private func publish(_ file: URL, as imageType: Clipboard.ImageType) -> Bool {
         guard let stored = try? store.add(file, fileExtension: imageType.fileExtension),
-              (try? clipboard.publish(stored, as: imageType)) != nil
+              clipboard.publish(stored, as: imageType)
         else { return false }
         store.prune(keeping: stored)
         return true

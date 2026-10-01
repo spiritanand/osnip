@@ -11,13 +11,16 @@ final class CallCounter {
 struct SnipTests {
     let directory: URL
     let storeDirectory: URL
+    let lockFile: URL
     let fixture: URL
     let pasteboard: NSPasteboard
+    let captureCalls = CallCounter()
     let permissionPrompts = CallCounter()
 
     init() throws {
         directory = try Fixture.temporaryDirectory()
         storeDirectory = directory.appendingPathComponent("store", isDirectory: true)
+        lockFile = directory.appendingPathComponent("osnip.lock")
         fixture = directory.appendingPathComponent("fixture.png")
         try Fixture.flatInterface(width: 800, height: 600, at: fixture)
         pasteboard = Fixture.privatePasteboard()
@@ -35,7 +38,8 @@ struct SnipTests {
         screenRecordingGranted: Bool = true
     ) -> Snip {
         Snip(
-            capture: { [fixture] destination in
+            capture: { [fixture, captureCalls] destination in
+                captureCalls.record()
                 if result == .captured { try? FileManager.default.copyItem(at: fixture, to: destination) }
                 return result
             },
@@ -44,6 +48,7 @@ struct SnipTests {
             budgetBytes: budgetBytes,
             store: CaptureStore(directory: storeDirectory ?? self.storeDirectory, keptCaptures: keptCaptures),
             clipboard: Clipboard(pasteboard: pasteboard),
+            lockFile: lockFile,
             screenRecordingIsGranted: { screenRecordingGranted },
             promptForScreenRecording: { [permissionPrompts] in permissionPrompts.record() }
         )
@@ -69,7 +74,7 @@ struct SnipTests {
         }
         let stored = try #require(storedFiles().first)
         #expect(storedFiles().count == 1)
-        #expect(stored.lastPathComponent.wholeMatch(of: /osnip-\d{8}-\d{6}-\d{3}\.webp/) != nil)
+        #expect(stored.pathExtension == "webp")
         #expect(try Fixture.isWebP(stored))
         #expect(originalBytes == (try ImageFile.byteCount(of: fixture)))
         #expect(optimizedBytes == (try ImageFile.byteCount(of: stored)))
@@ -131,23 +136,26 @@ struct SnipTests {
         #expect(permissionPrompts.count == 0)
     }
 
-    @Test func aMissingEncoderCopiesNothing() {
+    @Test func aMissingEncoderCopiesTheOriginal() throws {
         defer { pasteboard.releaseGlobally() }
-        let changeCount = pasteboard.changeCount
 
-        #expect(snip(capturing: .captured, encoder: nil).run() == .clipboardFailed)
-        #expect(pasteboard.changeCount == changeCount)
-        #expect(pasteboard.string(forType: .string) == "previous")
+        #expect(snip(capturing: .captured, encoder: nil).run() == .copiedOriginal)
+
+        let stored = try #require(storedFiles().first)
+        #expect(stored.pathExtension == "png")
+        #expect(try Data(contentsOf: stored) == (try Data(contentsOf: fixture)))
+        #expect(publishedFileURL()?.lastPathComponent == stored.lastPathComponent)
+        #expect(pasteboard.pasteboardItems?.first?.data(forType: .png) == (try Data(contentsOf: fixture)))
     }
 
-    @Test func aFailedColorConversionCopiesNothing() {
+    @Test func aFailedColorConversionCopiesTheOriginalInsteadOfEncodingIt() throws {
         defer { pasteboard.releaseGlobally() }
         let brokenNormalizer = ColorNormalizer(profile: directory.appendingPathComponent("missing.icc"))
-        let changeCount = pasteboard.changeCount
 
-        #expect(snip(capturing: .captured, normalizer: brokenNormalizer).run() == .clipboardFailed)
-        #expect(pasteboard.changeCount == changeCount)
-        #expect(storedFiles().isEmpty)
+        #expect(snip(capturing: .captured, normalizer: brokenNormalizer).run() == .copiedOriginal)
+
+        #expect(storedFiles().map(\.pathExtension) == ["png"])
+        #expect(pasteboard.pasteboardItems?.first?.data(forType: .png) == (try Data(contentsOf: fixture)))
     }
 
     @Test func anUnusableStoreFailsTheCopyAndKeepsThePreviousClipboard() throws {
@@ -161,6 +169,40 @@ struct SnipTests {
         #expect(outcome == .clipboardFailed)
         #expect(pasteboard.changeCount == changeCount)
         #expect(pasteboard.string(forType: .string) == "previous")
+    }
+
+    @Test func aFailedOptimizationWithAnUnusableStoreKeepsThePreviousClipboard() throws {
+        defer { pasteboard.releaseGlobally() }
+        let blocker = directory.appendingPathComponent("blocker")
+        try Data().write(to: blocker)
+        let changeCount = pasteboard.changeCount
+
+        let outcome = snip(capturing: .captured, encoder: nil, storeDirectory: blocker.appendingPathComponent("store")).run()
+
+        #expect(outcome == .clipboardFailed)
+        #expect(pasteboard.changeCount == changeCount)
+        #expect(pasteboard.string(forType: .string) == "previous")
+    }
+
+    @Test func aRunInProgressTurnsTheNextOneAwayBeforeCapturing() {
+        defer { pasteboard.releaseGlobally() }
+        let runInProgress = RunLock.acquire(at: lockFile)
+        let changeCount = pasteboard.changeCount
+
+        let outcome = withExtendedLifetime(runInProgress) { snip(capturing: .captured).run() }
+
+        #expect(outcome == .busy)
+        #expect(captureCalls.count == 0)
+        #expect(pasteboard.changeCount == changeCount)
+    }
+
+    @Test func anUnopenableLockFileIsACaptureFailure() {
+        defer { pasteboard.releaseGlobally() }
+        var blocked = snip(capturing: .captured)
+        blocked.lockFile = directory.appendingPathComponent("missing/osnip.lock")
+
+        #expect(blocked.run() == .captureFailed)
+        #expect(captureCalls.count == 0)
     }
 
     @Test func theWorkDirectoryIsGoneAfterTheRun() {

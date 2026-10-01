@@ -7,6 +7,7 @@ public struct Snip {
     public var budgetBytes: Int
     public var store: CaptureStore
     public var clipboard: Clipboard
+    public var lockFile: URL
     public var screenRecordingIsGranted: () -> Bool
     public var promptForScreenRecording: () -> Void
 
@@ -17,6 +18,7 @@ public struct Snip {
         budgetBytes: Int,
         store: CaptureStore,
         clipboard: Clipboard,
+        lockFile: URL,
         screenRecordingIsGranted: @escaping () -> Bool,
         promptForScreenRecording: @escaping () -> Void
     ) {
@@ -26,6 +28,7 @@ public struct Snip {
         self.budgetBytes = budgetBytes
         self.store = store
         self.clipboard = clipboard
+        self.lockFile = lockFile
         self.screenRecordingIsGranted = screenRecordingIsGranted
         self.promptForScreenRecording = promptForScreenRecording
     }
@@ -38,12 +41,24 @@ public struct Snip {
             budgetBytes: WebPEncoder.defaultBudgetBytes,
             store: CaptureStore(),
             clipboard: Clipboard(),
+            lockFile: RunLock.defaultFile,
             screenRecordingIsGranted: ScreenRecordingPermission.isGranted,
             promptForScreenRecording: ScreenRecordingPermission.requestAndOpenSettings
         )
     }
 
     public func run() -> Outcome {
+        switch RunLock.acquire(at: lockFile) {
+        case .heldByAnotherRun:
+            return .busy
+        case .unavailable:
+            return .captureFailed
+        case let .acquired(lock):
+            return withExtendedLifetime(lock) { runHoldingLock() }
+        }
+    }
+
+    private func runHoldingLock() -> Outcome {
         let workDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("osnip-\(UUID().uuidString)", isDirectory: true)
         guard (try? FileManager.default.createDirectory(at: workDirectory, withIntermediateDirectories: true)) != nil else {
@@ -68,9 +83,10 @@ public struct Snip {
 
     private func publishCapture(_ original: URL, workDirectory: URL) -> Outcome {
         guard let originalBytes = try? ImageFile.byteCount(of: original) else { return .captureFailed }
-        guard let optimized = try? optimize(original, in: workDirectory),
-              publish(optimized.url, fileExtension: "webp", as: .webP)
-        else { return .clipboardFailed }
+        guard let optimized = try? optimize(original, in: workDirectory) else {
+            return publish(original, fileExtension: "png", as: .png) ? .copiedOriginal : .clipboardFailed
+        }
+        guard publish(optimized.url, fileExtension: "webp", as: .webP) else { return .clipboardFailed }
         return .copied(originalBytes: originalBytes, optimizedBytes: optimized.byteCount)
     }
 

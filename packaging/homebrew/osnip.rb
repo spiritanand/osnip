@@ -1,0 +1,29 @@
+class Osnip < Formula
+  desc "Snip a screen region to a WebP under 100 KB, straight to the clipboard"
+  homepage "https://github.com/spiritanand/osnip"
+  license "MIT"
+  head "https://github.com/spiritanand/osnip.git", branch: "main"
+
+  depends_on macos: :sonoma
+  depends_on "webp"
+
+  def install
+    system "swift", "build", "--disable-sandbox", "-c", "release"
+    bin.install ".build/release/osnip"
+    pkgshare.install "raycast"
+  end
+
+  def caveats
+    <<~EOS
+      Bind osnip to a hotkey in Raycast:
+        1. Raycast Settings > Extensions > + > Add Script Directory
+        2. Choose #{opt_pkgshare}/raycast
+        3. Find "Optimized Snip" and record a hotkey, for example Cmd+Shift+0
+      On first use, allow Screen Recording for Raycast in System Settings.
+    EOS
+  end
+
+  test do
+    assert_equal "0.1.0", shell_output("#{bin}/osnip --version").strip
+  end
+end

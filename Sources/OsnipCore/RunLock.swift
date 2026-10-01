@@ -18,7 +18,7 @@ final class RunLock {
     }
 
     deinit {
-        // A child process being spawned briefly holds a copy of the descriptor, and closing alone would leave the lock held until that copy closes.
+        // flock belongs to the open file, so a copy held by a child mid-spawn would keep the lock after close.
         flock(descriptor, LOCK_UN)
         close(descriptor)
     }

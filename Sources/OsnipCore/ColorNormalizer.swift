@@ -1,10 +1,9 @@
 import Foundation
 
 struct ColorNormalizer {
-    static let systemSRGBProfile = URL(fileURLWithPath: "/System/Library/ColorSync/Profiles/sRGB Profile.icc")
-    static let sips = URL(fileURLWithPath: "/usr/bin/sips")
+    private static let sips = URL(fileURLWithPath: "/usr/bin/sips")
 
-    var profile = ColorNormalizer.systemSRGBProfile
+    var profile = URL(fileURLWithPath: "/System/Library/ColorSync/Profiles/sRGB Profile.icc")
 
     func makeSRGBCopy(of source: URL, at destination: URL) -> Bool {
         let arguments = ["--matchTo", profile.path, source.path, "--out", destination.path]

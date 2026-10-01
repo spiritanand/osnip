@@ -1,21 +1,21 @@
 import Foundation
 
-public enum CaptureResult: Equatable, Sendable {
+enum CaptureResult {
     case captured
     case cancelled
     case failed
 }
 
-public struct ScreenCapture: Sendable {
-    public static let systemTool = URL(fileURLWithPath: "/usr/sbin/screencapture")
+struct ScreenCapture {
+    static let systemTool = URL(fileURLWithPath: "/usr/sbin/screencapture")
 
-    public let tool: URL
+    let tool: URL
 
-    public init(tool: URL = ScreenCapture.systemTool) {
+    init(tool: URL = ScreenCapture.systemTool) {
         self.tool = tool
     }
 
-    public func captureInteractively(to destination: URL) -> CaptureResult {
+    func captureInteractively(to destination: URL) -> CaptureResult {
         guard let result = try? Shell.run(tool, ["-i", "-o", "-t", "png", destination.path]) else {
             return .failed
         }

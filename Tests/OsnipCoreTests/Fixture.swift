@@ -6,7 +6,7 @@ import Testing
 import UniformTypeIdentifiers
 @testable import OsnipCore
 
-struct RGB: Equatable {
+struct RGB {
     let red: UInt8
     let green: UInt8
     let blue: UInt8
@@ -86,18 +86,33 @@ enum Fixture {
         try writePNG(width: width, height: height, colorSpaceName: colorSpaceName, to: url) { _, _ in color }
     }
 
-    static func storedPixel(of url: URL) throws -> RGB {
+    static func storedPixel(of url: URL, x: Int, y: Int) throws -> (color: RGB, alpha: UInt8) {
         let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
         let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
         let colorSpace = try #require(image.colorSpace)
         var bytes = [UInt8](repeating: 0, count: image.width * image.height * 4)
         let context = try #require(CGContext(
             data: &bytes, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: image.width * 4,
-            space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ))
         context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
-        let offset = ((image.height / 2) * image.width + image.width / 2) * 4
-        return RGB(red: bytes[offset], green: bytes[offset + 1], blue: bytes[offset + 2])
+        let offset = (y * image.width + x) * 4
+        return (RGB(red: bytes[offset], green: bytes[offset + 1], blue: bytes[offset + 2]), bytes[offset + 3])
+    }
+
+    static func sRGBEquivalent(ofDisplayP3 color: RGB) throws -> RGB {
+        let displayP3 = try #require(CGColorSpace(name: CGColorSpace.displayP3))
+        let sRGB = try #require(CGColorSpace(name: CGColorSpace.sRGB))
+        let components = [color.red, color.green, color.blue].map { CGFloat($0) / 255 } + [1]
+        let source = try #require(CGColor(colorSpace: displayP3, components: components))
+        let converted = try #require(source.converted(to: sRGB, intent: .relativeColorimetric, options: nil)?.components)
+        let bytes = converted.prefix(3).map { UInt8(min(max(($0 * 255).rounded(), 0), 255)) }
+        return RGB(red: bytes[0], green: bytes[1], blue: bytes[2])
+    }
+
+    static func channelsAreClose(_ first: RGB, _ second: RGB) -> Bool {
+        [(first.red, second.red), (first.green, second.green), (first.blue, second.blue)]
+            .allSatisfy { abs(Int($0.0) - Int($0.1)) <= 3 }
     }
 
     static func embeddedProfileName(of url: URL) throws -> String? {
@@ -111,19 +126,6 @@ enum Fixture {
         try writePNG(width: width, height: height, to: url, alpha: { x, y in isCorner(x, y) ? 0 : 255 }) { _, _ in
             RGB(red: 40, green: 90, blue: 200)
         }
-    }
-
-    static func storedAlpha(of url: URL, x: Int, y: Int) throws -> UInt8 {
-        let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
-        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
-        let colorSpace = try #require(CGColorSpace(name: CGColorSpace.sRGB))
-        var bytes = [UInt8](repeating: 0, count: image.width * image.height * 4)
-        let context = try #require(CGContext(
-            data: &bytes, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: image.width * 4,
-            space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ))
-        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
-        return bytes[(y * image.width + x) * 4 + 3]
     }
 
     static func executableScript(_ body: String, named name: String, in directory: URL) throws -> URL {

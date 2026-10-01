@@ -1,13 +1,13 @@
 import Foundation
 
-public final class RunLock {
-    public enum Acquisition {
+final class RunLock {
+    enum Acquisition {
         case acquired(RunLock)
         case heldByAnotherRun
         case unavailable
     }
 
-    public static var defaultFile: URL {
+    static var defaultFile: URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("osnip.lock")
     }
 
@@ -21,7 +21,7 @@ public final class RunLock {
         close(descriptor)
     }
 
-    public static func acquire(at file: URL) -> Acquisition {
+    static func acquire(at file: URL) -> Acquisition {
         // O_CLOEXEC keeps child processes from inheriting the descriptor and with it the lock.
         let descriptor = open(file.path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
         guard descriptor >= 0 else { return .unavailable }

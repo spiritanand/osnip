@@ -1,15 +1,15 @@
 import Foundation
 
-public struct ShellResult: Sendable {
-    public let exitedNormally: Bool
-    public let status: Int32
-    public let standardError: String
+struct ShellResult {
+    let exitedNormally: Bool
+    let status: Int32
+    let standardError: String
 
-    public var succeeded: Bool { exitedNormally && status == 0 }
+    var succeeded: Bool { exitedNormally && status == 0 }
 }
 
-public enum Shell {
-    public static func run(_ executable: URL, _ arguments: [String]) throws -> ShellResult {
+enum Shell {
+    static func run(_ executable: URL, _ arguments: [String]) throws -> ShellResult {
         let errorPipe = Pipe()
         let process = makeProcess(executable, arguments, standardError: errorPipe)
         try process.run()
@@ -22,7 +22,7 @@ public enum Shell {
         )
     }
 
-    public static func start(_ executable: URL, _ arguments: [String]) throws -> Process {
+    static func start(_ executable: URL, _ arguments: [String]) throws -> Process {
         let process = makeProcess(executable, arguments, standardError: FileHandle.nullDevice)
         try process.run()
         return process

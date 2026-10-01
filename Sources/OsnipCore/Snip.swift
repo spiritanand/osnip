@@ -1,37 +1,15 @@
 import Foundation
 
 public struct Snip {
-    public var capture: (URL) -> CaptureResult
-    public var locateEncoder: () -> URL?
-    public var normalizer: ColorNormalizer
-    public var budgetBytes: Int
-    public var store: CaptureStore
-    public var clipboard: Clipboard
-    public var lockFile: URL
-    public var screenRecordingIsGranted: () -> Bool
-    public var promptForScreenRecording: () -> Void
-
-    public init(
-        capture: @escaping (URL) -> CaptureResult,
-        locateEncoder: @escaping () -> URL?,
-        normalizer: ColorNormalizer,
-        budgetBytes: Int,
-        store: CaptureStore,
-        clipboard: Clipboard,
-        lockFile: URL,
-        screenRecordingIsGranted: @escaping () -> Bool,
-        promptForScreenRecording: @escaping () -> Void
-    ) {
-        self.capture = capture
-        self.locateEncoder = locateEncoder
-        self.normalizer = normalizer
-        self.budgetBytes = budgetBytes
-        self.store = store
-        self.clipboard = clipboard
-        self.lockFile = lockFile
-        self.screenRecordingIsGranted = screenRecordingIsGranted
-        self.promptForScreenRecording = promptForScreenRecording
-    }
+    var capture: (URL) -> CaptureResult
+    var locateEncoder: () -> URL?
+    var normalizer: ColorNormalizer
+    var budgetBytes: Int
+    var store: CaptureStore
+    var clipboard: Clipboard
+    var lockFile: URL
+    var screenRecordingIsGranted: () -> Bool
+    var promptForScreenRecording: () -> Void
 
     public static func live() -> Snip {
         Snip(
@@ -83,22 +61,22 @@ public struct Snip {
 
     private func publishCapture(_ original: URL, workDirectory: URL) -> Outcome {
         guard let originalBytes = try? ImageFile.byteCount(of: original) else { return .captureFailed }
-        guard let optimized = try? optimize(original, in: workDirectory) else {
-            return publish(original, fileExtension: "png", as: .png) ? .copiedOriginal : .clipboardFailed
+        guard let optimized = optimize(original, in: workDirectory) else {
+            return publish(original, as: .png) ? .copiedOriginal : .clipboardFailed
         }
-        guard publish(optimized.url, fileExtension: "webp", as: .webP) else { return .clipboardFailed }
+        guard publish(optimized.url, as: .webP) else { return .clipboardFailed }
         return .copied(originalBytes: originalBytes, optimizedBytes: optimized.byteCount)
     }
 
-    private func optimize(_ original: URL, in workDirectory: URL) throws -> EncodedImage {
-        guard let cwebp = locateEncoder() else { throw OptimizationError.encoderNotFound }
+    private func optimize(_ original: URL, in workDirectory: URL) -> EncodedImage? {
+        guard let cwebp = locateEncoder() else { return nil }
         let normalized = workDirectory.appendingPathComponent("srgb.png")
-        try normalizer.makeSRGBCopy(of: original, at: normalized)
-        return try WebPEncoder(cwebp: cwebp, budgetBytes: budgetBytes).encode(normalized, in: workDirectory)
+        guard normalizer.makeSRGBCopy(of: original, at: normalized) else { return nil }
+        return WebPEncoder(cwebp: cwebp, budgetBytes: budgetBytes).race(normalized, in: workDirectory).winner
     }
 
-    private func publish(_ file: URL, fileExtension: String, as imageType: Clipboard.ImageType) -> Bool {
-        guard let stored = try? store.add(file, fileExtension: fileExtension),
+    private func publish(_ file: URL, as imageType: Clipboard.ImageType) -> Bool {
+        guard let stored = try? store.add(file, fileExtension: imageType.fileExtension),
               (try? clipboard.publish(stored, as: imageType)) != nil
         else { return false }
         store.prune(keeping: stored)

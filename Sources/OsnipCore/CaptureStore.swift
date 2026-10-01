@@ -1,30 +1,30 @@
 import Foundation
 
-public struct CaptureStore: Sendable {
-    public static let defaultKeptCaptures = 50
+struct CaptureStore {
+    static let defaultKeptCaptures = 50
     static let namePrefix = "osnip-"
 
-    public let directory: URL
-    public let keptCaptures: Int
+    let directory: URL
+    let keptCaptures: Int
 
-    public init(directory: URL = CaptureStore.defaultDirectory, keptCaptures: Int = CaptureStore.defaultKeptCaptures) {
+    init(directory: URL = CaptureStore.defaultDirectory, keptCaptures: Int = CaptureStore.defaultKeptCaptures) {
         self.directory = directory
         self.keptCaptures = keptCaptures
     }
 
-    public static var defaultDirectory: URL {
+    static var defaultDirectory: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("osnip", isDirectory: true)
     }
 
-    public func add(_ file: URL, fileExtension: String, capturedAt date: Date = Date()) throws -> URL {
+    func add(_ file: URL, fileExtension: String, capturedAt date: Date = Date()) throws -> URL {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let destination = unusedURL(stem: Self.namePrefix + Self.timestamp(date), fileExtension: fileExtension)
         try FileManager.default.moveItem(at: file, to: destination)
         return destination
     }
 
-    public func prune(keeping added: URL) {
+    func prune(keeping added: URL) {
         let fileFacts: Set<URLResourceKey> = [.isRegularFileKey, .contentModificationDateKey]
         guard let entries = try? FileManager.default.contentsOfDirectory(
             at: directory, includingPropertiesForKeys: Array(fileFacts)

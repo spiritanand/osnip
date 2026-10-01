@@ -24,6 +24,6 @@ class Osnip < Formula
   end
 
   test do
-    assert_equal "0.1.0", shell_output("#{bin}/osnip --version").strip
+    assert_match(/\A\d+\.\d+\.\d+\n\z/, shell_output("#{bin}/osnip --version"))
   end
 end

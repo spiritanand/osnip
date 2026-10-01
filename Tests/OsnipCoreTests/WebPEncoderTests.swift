@@ -46,8 +46,8 @@ struct WebPEncoderTests {
 
         let winner = try #require(WebPEncoder(cwebp: try Fixture.cwebp()).race(source, in: directory).winner)
 
-        #expect(try Fixture.storedAlpha(of: winner.url, x: 0, y: 0) == 0)
-        #expect(try Fixture.storedAlpha(of: winner.url, x: 160, y: 120) == 255)
+        #expect(try Fixture.storedPixel(of: winner.url, x: 0, y: 0).alpha == 0)
+        #expect(try Fixture.storedPixel(of: winner.url, x: 160, y: 120).alpha == 255)
     }
 
     @Test func aOnePixelCaptureStillEncodes() throws {
@@ -102,21 +102,21 @@ struct WebPEncoderTests {
         expectEveryStartedProcessExited(report)
     }
 
-    @Test func aMissingEncoderThrows() throws {
+    @Test func aMissingEncoderHasNoWinner() throws {
         let source = directory.appendingPathComponent("flat.png")
         try Fixture.flatInterface(width: 64, height: 48, at: source)
-        let encoder = WebPEncoder(cwebp: directory.appendingPathComponent("no-such-cwebp"))
 
-        #expect(encoder.race(source, in: directory).startedProcesses.isEmpty)
-        #expect(throws: OptimizationError.noCandidateSucceeded) { try encoder.encode(source, in: directory) }
+        let report = WebPEncoder(cwebp: directory.appendingPathComponent("no-such-cwebp")).race(source, in: directory)
+
+        #expect(report.startedProcesses.isEmpty)
+        #expect(report.winner == nil)
     }
 
-    @Test func anUnreadableSourceThrows() throws {
+    @Test func anUnreadableSourceHasNoWinner() throws {
         let source = directory.appendingPathComponent("not-an-image.png")
         try Data("not an image".utf8).write(to: source)
-        let encoder = WebPEncoder(cwebp: try Fixture.cwebp())
 
-        #expect(throws: OptimizationError.noCandidateSucceeded) { try encoder.encode(source, in: directory) }
+        #expect(WebPEncoder(cwebp: try Fixture.cwebp()).race(source, in: directory).winner == nil)
     }
 
     @Test func losingEncodersAreStoppedAndReapedOnceAWinnerIsKnown() throws {

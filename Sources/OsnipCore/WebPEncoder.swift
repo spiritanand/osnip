@@ -1,24 +1,18 @@
 import Foundation
 
-public enum OptimizationError: Error, Equatable {
-    case encoderNotFound
-    case colorNormalizationFailed
-    case noCandidateSucceeded
+struct EncodedImage {
+    let url: URL
+    let byteCount: Int
 }
 
-public struct EncodedImage: Equatable, Sendable {
-    public let url: URL
-    public let byteCount: Int
-}
+struct Candidate {
+    enum Scale { case full, half }
+    enum Mode { case lossless, lossy }
 
-public struct Candidate: Equatable, Sendable {
-    public enum Scale: Sendable { case full, half }
-    public enum Mode: Sendable { case lossless, lossy }
+    let scale: Scale
+    let mode: Mode
 
-    public let scale: Scale
-    public let mode: Mode
-
-    public static let inPreferenceOrder = [
+    static let inPreferenceOrder = [
         Candidate(scale: .full, mode: .lossless),
         Candidate(scale: .full, mode: .lossy),
         Candidate(scale: .half, mode: .lossless),
@@ -26,8 +20,8 @@ public struct Candidate: Equatable, Sendable {
     ]
 }
 
-public enum CandidateSelection {
-    public static func winner(among byteCounts: [Int?], budgetBytes: Int) -> (index: Int, byteCount: Int)? {
+enum CandidateSelection {
+    static func winner(among byteCounts: [Int?], budgetBytes: Int) -> (index: Int, byteCount: Int)? {
         let successes = byteCounts.enumerated().compactMap { index, byteCount in
             byteCount.map { (index: index, byteCount: $0) }
         }
@@ -38,24 +32,17 @@ public enum CandidateSelection {
     }
 }
 
-public struct WebPEncoder {
-    public static let defaultBudgetBytes = 100_000
+struct WebPEncoder {
+    static let defaultBudgetBytes = 100_000
     static let lossyTargetFraction = 0.92
     static let lossyQualityFloor = 60
 
-    public let cwebp: URL
-    public let budgetBytes: Int
+    let cwebp: URL
+    let budgetBytes: Int
 
-    public init(cwebp: URL, budgetBytes: Int = WebPEncoder.defaultBudgetBytes) {
+    init(cwebp: URL, budgetBytes: Int = WebPEncoder.defaultBudgetBytes) {
         self.cwebp = cwebp
         self.budgetBytes = budgetBytes
-    }
-
-    public func encode(_ source: URL, in workDirectory: URL) throws -> EncodedImage {
-        guard let winner = race(source, in: workDirectory).winner else {
-            throw OptimizationError.noCandidateSucceeded
-        }
-        return winner
     }
 
     struct RaceReport {

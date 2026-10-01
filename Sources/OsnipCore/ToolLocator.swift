@@ -1,9 +1,9 @@
 import Foundation
 
-public enum ToolLocator {
+enum ToolLocator {
     static let fallbackDirectories = ["/opt/homebrew/bin", "/usr/local/bin"]
 
-    public static func locate(
+    static func locate(
         _ name: String,
         searchPath: String = ProcessInfo.processInfo.environment["PATH"] ?? ""
     ) -> URL? {

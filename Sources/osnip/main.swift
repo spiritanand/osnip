@@ -12,5 +12,5 @@ case .printUsage:
     print(Invocation.usage)
 case .rejectArguments:
     FileHandle.standardError.write(Data((Invocation.usage + "\n").utf8))
-    exit(64)
+    exit(EX_USAGE)
 }

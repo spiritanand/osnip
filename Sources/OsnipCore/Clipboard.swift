@@ -1,13 +1,20 @@
 import AppKit
 
-public enum ClipboardError: Error {
+enum ClipboardError: Error {
     case writeRejected
 }
 
-public struct Clipboard {
-    public enum ImageType: Sendable {
+struct Clipboard {
+    enum ImageType {
         case webP
         case png
+
+        var fileExtension: String {
+            switch self {
+            case .webP: "webp"
+            case .png: "png"
+            }
+        }
 
         var pasteboardType: NSPasteboard.PasteboardType {
             switch self {
@@ -19,11 +26,11 @@ public struct Clipboard {
 
     let pasteboard: NSPasteboard
 
-    public init(pasteboard: NSPasteboard = .general) {
+    init(pasteboard: NSPasteboard = .general) {
         self.pasteboard = pasteboard
     }
 
-    public func publish(_ file: URL, as imageType: ImageType) throws {
+    func publish(_ file: URL, as imageType: ImageType) throws {
         let imageBytes = try Data(contentsOf: file)
         let item = NSPasteboardItem()
         item.setString(file.absoluteString, forType: .fileURL)

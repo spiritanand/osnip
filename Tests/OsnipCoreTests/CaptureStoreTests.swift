@@ -21,16 +21,33 @@ struct CaptureStoreTests {
         try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: file.path)
     }
 
+    private func addCaptures(agedSeconds ages: [Int], to store: CaptureStore) throws -> [URL] {
+        try ages.map { age in
+            let namedLaterTheOlderItIs = Date(timeIntervalSince1970: Double(1_000_000 + age))
+            let file = try store.add(try incomingFile("age \(age)"), fileExtension: "webp", capturedAt: namedLaterTheOlderItIs)
+            try setModificationDate(Date(timeIntervalSinceNow: Double(-age)), of: file)
+            return file
+        }
+    }
+
     private func storedNames() throws -> [String] {
         try FileManager.default.contentsOfDirectory(atPath: storeDirectory.path).sorted()
     }
 
     @Test func movesTheFileIntoTheStoreUnderATimestampedName() throws {
         let incoming = try incomingFile("webp bytes")
-        let stored = try CaptureStore(directory: storeDirectory).add(incoming, fileExtension: "webp")
+        let capturedAt = Date(timeIntervalSince1970: 1_790_000_000.5)
+        var localCalendar = Calendar(identifier: .gregorian)
+        localCalendar.timeZone = .current
+        let local = localCalendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: capturedAt)
+        let fields = try [local.year, local.month, local.day, local.hour, local.minute, local.second].map { try #require($0) }
+
+        let stored = try CaptureStore(directory: storeDirectory).add(incoming, fileExtension: "webp", capturedAt: capturedAt)
 
         #expect(stored.deletingLastPathComponent().lastPathComponent == "store")
-        #expect(stored.lastPathComponent.wholeMatch(of: /osnip-\d{8}-\d{6}-\d{3}\.webp/) != nil)
+        #expect(stored.lastPathComponent == String(
+            format: "osnip-%04d%02d%02d-%02d%02d%02d-500.webp", fields[0], fields[1], fields[2], fields[3], fields[4], fields[5]
+        ))
         #expect(try String(contentsOf: stored, encoding: .utf8) == "webp bytes")
         #expect(!FileManager.default.fileExists(atPath: incoming.path))
     }
@@ -51,12 +68,7 @@ struct CaptureStoreTests {
 
     @Test func pruningKeepsTheAddedFileAndTheNewestOthers() throws {
         let store = CaptureStore(directory: storeDirectory, keptCaptures: 3)
-        var stored: [URL] = []
-        for age in [500, 400, 300, 200, 100] {
-            let file = try store.add(try incomingFile("age \(age)"), fileExtension: "webp", capturedAt: Date(timeIntervalSince1970: Double(1_000_000 - age)))
-            try setModificationDate(Date(timeIntervalSinceNow: Double(-age)), of: file)
-            stored.append(file)
-        }
+        let stored = try addCaptures(agedSeconds: [500, 400, 300, 200, 100], to: store)
 
         store.prune(keeping: stored[4])
 
@@ -65,12 +77,7 @@ struct CaptureStoreTests {
 
     @Test func pruningStillHoldsExactlyTheLimitWhenTheAddedFileLooksOldest() throws {
         let store = CaptureStore(directory: storeDirectory, keptCaptures: 3)
-        var stored: [URL] = []
-        for age in [400, 300, 200, 100] {
-            let file = try store.add(try incomingFile("age \(age)"), fileExtension: "webp", capturedAt: Date(timeIntervalSince1970: Double(1_000_000 - age)))
-            try setModificationDate(Date(timeIntervalSinceNow: Double(-age)), of: file)
-            stored.append(file)
-        }
+        let stored = try addCaptures(agedSeconds: [400, 300, 200, 100], to: store)
         let added = try store.add(try incomingFile("clock went backwards"), fileExtension: "webp", capturedAt: Date(timeIntervalSince1970: 1))
         try setModificationDate(Date(timeIntervalSinceNow: -9_000), of: added)
 

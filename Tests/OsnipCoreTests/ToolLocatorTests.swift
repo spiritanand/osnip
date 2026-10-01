@@ -26,6 +26,12 @@ struct ToolLocatorTests {
         #expect(ToolLocator.locate("osnip-test-tool", searchPath: "\(first.path):\(second.path)")?.path == earlier.path)
     }
 
+    @Test func theSearchPathWinsOverTheHomebrewDirectories() throws {
+        let standIn = try Fixture.executableScript("exit 0", named: "cwebp", in: first)
+
+        #expect(ToolLocator.locate("cwebp", searchPath: first.path)?.path == standIn.path)
+    }
+
     @Test func skipsADirectoryThatSharesTheToolsName() throws {
         try FileManager.default.createDirectory(at: first.appendingPathComponent("osnip-test-tool"), withIntermediateDirectories: true)
         let tool = try Fixture.executableScript("exit 0", named: "osnip-test-tool", in: second)

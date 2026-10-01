@@ -64,7 +64,7 @@ struct SnipTests {
 
     @Test func aCaptureEndsUpAsAStoredWebPOnTheClipboard() throws {
         defer { pasteboard.releaseGlobally() }
-        try #require(ToolLocator.locate("cwebp") != nil, "cwebp is required: brew install webp")
+        _ = try Fixture.cwebp()
 
         let outcome = snip(capturing: .captured).run()
 
@@ -82,6 +82,23 @@ struct SnipTests {
         #expect(publishedFileURL()?.lastPathComponent == stored.lastPathComponent)
         #expect(pasteboard.pasteboardItems?.first?.data(forType: NSPasteboard.PasteboardType("org.webmproject.webp")) == (try Data(contentsOf: stored)))
         #expect(outcome.hudLine?.wholeMatch(of: /Copied · \d+ KB → \d+ KB \(−\d+%\)/) != nil)
+    }
+
+    @Test func aDisplayP3CaptureIsConvertedToSRGBBeforeEncoding() throws {
+        defer { pasteboard.releaseGlobally() }
+        let displayP3Color = RGB(red: 204, green: 102, blue: 77)
+        let displayP3Capture = directory.appendingPathComponent("display-p3.png")
+        try Fixture.solid(displayP3Color, colorSpaceName: CGColorSpace.displayP3, width: 64, height: 48, at: displayP3Capture)
+        var capturingDisplayP3 = snip(capturing: .captured)
+        capturingDisplayP3.capture = { destination in
+            try? FileManager.default.copyItem(at: displayP3Capture, to: destination)
+            return .captured
+        }
+
+        _ = capturingDisplayP3.run()
+
+        let stored = try Fixture.storedPixel(of: try #require(storedFiles().first), x: 32, y: 24).color
+        #expect(Fixture.channelsAreClose(stored, try Fixture.sRGBEquivalent(ofDisplayP3: displayP3Color)))
     }
 
     @Test func anImpossibleBudgetStillCopiesTheSmallestResult() throws {

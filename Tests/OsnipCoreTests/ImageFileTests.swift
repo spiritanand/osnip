@@ -27,9 +27,9 @@ struct ImageFileTests {
         #expect(!ImageFile.isCompletePNG(truncated))
     }
 
-    @Test func aFileThatIsNotAnImageHasNoPixelSize() throws {
+    @Test func garbageThatEndsLikeAPNGIsNotAnImage() throws {
         let garbage = directory.appendingPathComponent("garbage.png")
-        try Data("not a png".utf8).write(to: garbage)
+        try (Data("not a png".utf8) + Data(contentsOf: png).suffix(12)).write(to: garbage)
 
         #expect(ImageFile.pixelSize(of: garbage) == nil)
         #expect(!ImageFile.isCompletePNG(garbage))

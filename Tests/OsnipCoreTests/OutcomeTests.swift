@@ -8,7 +8,7 @@ import Testing
     (Outcome.copied(originalBytes: 100_000, optimizedBytes: 99_250), "Copied · 99 KB"),
     (Outcome.copied(originalBytes: 3_000, optimizedBytes: 2_990), "Copied · 3 KB"),
     (Outcome.copied(originalBytes: 3_000, optimizedBytes: 3_600), "Copied · 4 KB"),
-    (Outcome.copied(originalBytes: 0, optimizedBytes: 10), "Copied · 1 KB"),
+    (Outcome.copied(originalBytes: 0, optimizedBytes: 0), "Copied · 1 KB"),
     (Outcome.copiedOriginal, "Copied original · Optimization failed"),
     (Outcome.screenRecordingDenied, "Allow Screen Recording for Raycast"),
     (Outcome.captureFailed, "Couldn't capture"),

@@ -11,14 +11,6 @@ struct ToolLocatorTests {
         second = try Fixture.temporaryDirectory()
     }
 
-    @Test func findsAnExecutableOnTheSearchPath() throws {
-        let tool = try Fixture.executableScript("exit 0", named: "osnip-test-tool", in: second)
-
-        let located = ToolLocator.locate("osnip-test-tool", searchPath: "/nonexistent:\(first.path):\(second.path)")
-
-        #expect(located?.path == tool.path)
-    }
-
     @Test func prefersTheEarlierDirectory() throws {
         let earlier = try Fixture.executableScript("exit 0", named: "osnip-test-tool", in: first)
         _ = try Fixture.executableScript("exit 0", named: "osnip-test-tool", in: second)

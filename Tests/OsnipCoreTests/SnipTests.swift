@@ -19,13 +19,20 @@ struct SnipTests {
         pasteboard.setString("previous", forType: .string)
     }
 
-    private func snip(capturing result: CaptureResult, encoder: URL? = ToolLocator.locate("cwebp")) -> Snip {
+    private func snip(
+        capturing result: CaptureResult,
+        encoder: URL? = ToolLocator.locate("cwebp"),
+        normalizer: ColorNormalizer = ColorNormalizer(),
+        budgetBytes: Int = WebPEncoder.defaultBudgetBytes
+    ) -> Snip {
         Snip(
             capture: { [fixture] destination in
                 if result == .captured { try? FileManager.default.copyItem(at: fixture, to: destination) }
                 return result
             },
             locateEncoder: { encoder },
+            normalizer: normalizer,
+            budgetBytes: budgetBytes,
             outputDirectory: outputDirectory,
             clipboard: Clipboard(pasteboard: pasteboard)
         )
@@ -53,13 +60,25 @@ struct SnipTests {
         #expect(outputFiles().count == 1)
         #expect(output.pathExtension == "webp")
         #expect(try Fixture.isWebP(output))
-        #expect(ImageFile.pixelSize(of: output)?.width == 800)
-        #expect(ImageFile.pixelSize(of: output)?.height == 600)
         #expect(originalBytes == (try ImageFile.byteCount(of: fixture)))
         #expect(optimizedBytes == (try ImageFile.byteCount(of: output)))
+        #expect(optimizedBytes <= WebPEncoder.defaultBudgetBytes)
         #expect(publishedFileURL()?.lastPathComponent == output.lastPathComponent)
         #expect(pasteboard.pasteboardItems?.first?.data(forType: NSPasteboard.PasteboardType("org.webmproject.webp")) == (try Data(contentsOf: output)))
         #expect(outcome.hudLine?.wholeMatch(of: /Copied · \d+ KB → \d+ KB \(−\d+%\)/) != nil)
+    }
+
+    @Test func anImpossibleBudgetStillCopiesTheSmallestResult() throws {
+        defer { pasteboard.releaseGlobally() }
+
+        let outcome = snip(capturing: .captured, budgetBytes: 10).run()
+
+        guard case let .copied(_, optimizedBytes) = outcome else {
+            Issue.record("expected a copy, got \(outcome)")
+            return
+        }
+        #expect(optimizedBytes > 10)
+        #expect(outputFiles().map(\.pathExtension) == ["webp"])
     }
 
     @Test func escapeChangesNothing() {
@@ -86,6 +105,16 @@ struct SnipTests {
         #expect(snip(capturing: .captured, encoder: nil).run() == .clipboardFailed)
         #expect(pasteboard.changeCount == changeCount)
         #expect(pasteboard.string(forType: .string) == "previous")
+    }
+
+    @Test func aFailedColorConversionCopiesNothing() {
+        defer { pasteboard.releaseGlobally() }
+        let brokenNormalizer = ColorNormalizer(profile: directory.appendingPathComponent("missing.icc"))
+        let changeCount = pasteboard.changeCount
+
+        #expect(snip(capturing: .captured, normalizer: brokenNormalizer).run() == .clipboardFailed)
+        #expect(pasteboard.changeCount == changeCount)
+        #expect(outputFiles().isEmpty)
     }
 
     @Test func theWorkDirectoryIsGoneAfterTheRun() {

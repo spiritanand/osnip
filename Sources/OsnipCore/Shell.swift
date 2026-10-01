@@ -22,6 +22,12 @@ public enum Shell {
         )
     }
 
+    public static func start(_ executable: URL, _ arguments: [String]) throws -> Process {
+        let process = makeProcess(executable, arguments, standardError: FileHandle.nullDevice)
+        try process.run()
+        return process
+    }
+
     private static func makeProcess(_ executable: URL, _ arguments: [String], standardError: Any) -> Process {
         let process = Process()
         process.executableURL = executable

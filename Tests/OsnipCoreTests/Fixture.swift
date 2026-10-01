@@ -69,6 +69,63 @@ enum Fixture {
         }
     }
 
+    static func noise(width: Int, height: Int, at url: URL) throws {
+        var state: UInt64 = 0x9E37_79B9_7F4A_7C15
+        func nextByte() -> UInt8 {
+            state ^= state << 13
+            state ^= state >> 7
+            state ^= state << 17
+            return UInt8(truncatingIfNeeded: state >> 24)
+        }
+        try writePNG(width: width, height: height, to: url) { _, _ in
+            RGB(red: nextByte(), green: nextByte(), blue: nextByte())
+        }
+    }
+
+    static func solid(_ color: RGB, colorSpaceName: CFString, width: Int, height: Int, at url: URL) throws {
+        try writePNG(width: width, height: height, colorSpaceName: colorSpaceName, to: url) { _, _ in color }
+    }
+
+    static func storedPixel(of url: URL) throws -> RGB {
+        let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let colorSpace = try #require(image.colorSpace)
+        var bytes = [UInt8](repeating: 0, count: image.width * image.height * 4)
+        let context = try #require(CGContext(
+            data: &bytes, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: image.width * 4,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        ))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        let offset = ((image.height / 2) * image.width + image.width / 2) * 4
+        return RGB(red: bytes[offset], green: bytes[offset + 1], blue: bytes[offset + 2])
+    }
+
+    static func embeddedProfileName(of url: URL) throws -> String? {
+        let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        return properties?[kCGImagePropertyProfileName] as? String
+    }
+
+    static func transparentCorners(width: Int, height: Int, at url: URL) throws {
+        let isCorner: (Int, Int) -> Bool = { x, y in (x < 8 || x >= width - 8) && (y < 8 || y >= height - 8) }
+        try writePNG(width: width, height: height, to: url, alpha: { x, y in isCorner(x, y) ? 0 : 255 }) { _, _ in
+            RGB(red: 40, green: 90, blue: 200)
+        }
+    }
+
+    static func storedAlpha(of url: URL, x: Int, y: Int) throws -> UInt8 {
+        let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let colorSpace = try #require(CGColorSpace(name: CGColorSpace.sRGB))
+        var bytes = [UInt8](repeating: 0, count: image.width * image.height * 4)
+        let context = try #require(CGContext(
+            data: &bytes, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: image.width * 4,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return bytes[(y * image.width + x) * 4 + 3]
+    }
+
     static func executableScript(_ body: String, named name: String, in directory: URL) throws -> URL {
         let script = directory.appendingPathComponent(name)
         try Data("#!/bin/sh\n\(body)\n".utf8).write(to: script)

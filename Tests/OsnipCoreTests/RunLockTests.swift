@@ -33,7 +33,9 @@ struct RunLockTests {
         guard case let .acquired(lock) = RunLock.acquire(at: lockFile) else {
             throw CocoaError(.fileLocking)
         }
-        return dup(lock.descriptor)
+        let copy = dup(lock.descriptor)
+        try #require(copy >= 0)
+        return copy
     }
 
     @Test func lettingGoReleasesTheLockEvenWhileACopyOfItsDescriptorIsStillOpen() throws {

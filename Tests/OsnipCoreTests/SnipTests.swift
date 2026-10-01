@@ -175,30 +175,54 @@ struct SnipTests {
         #expect(pasteboard.pasteboardItems?.first?.data(forType: .png) == (try Data(contentsOf: fixture)))
     }
 
-    @Test func anUnusableStoreFailsTheCopyAndKeepsThePreviousClipboard() throws {
+    @Test(arguments: [true, false])
+    func anUnusableStoreFailsTheCopyAndKeepsThePreviousClipboard(optimizationSucceeds: Bool) throws {
         defer { pasteboard.releaseGlobally() }
         let blocker = directory.appendingPathComponent("blocker")
         try Data().write(to: blocker)
+        let encoder = optimizationSucceeds ? try Fixture.cwebp() : nil
         let changeCount = pasteboard.changeCount
 
-        let outcome = snip(capturing: .captured, storeDirectory: blocker.appendingPathComponent("store")).run()
+        let outcome = snip(capturing: .captured, encoder: encoder, storeDirectory: blocker.appendingPathComponent("store")).run()
 
         #expect(outcome == .clipboardFailed)
         #expect(pasteboard.changeCount == changeCount)
         #expect(pasteboard.string(forType: .string) == "previous")
     }
 
-    @Test func aFailedOptimizationWithAnUnusableStoreKeepsThePreviousClipboard() throws {
+    @Test func aStoredCaptureThatCannotBeReadBackFailsTheCopyAndPrunesNothing() throws {
         defer { pasteboard.releaseGlobally() }
-        let blocker = directory.appendingPathComponent("blocker")
-        try Data().write(to: blocker)
+        var copyingOriginals = snip(capturing: .captured, encoder: nil, keptCaptures: 1)
+        _ = copyingOriginals.run()
+        let earlier = try #require(storedFiles().first)
         let changeCount = pasteboard.changeCount
+        copyingOriginals.capture = { [fixture] destination in
+            try? FileManager.default.copyItem(at: fixture, to: destination)
+            try? FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: destination.path)
+            return .captured
+        }
 
-        let outcome = snip(capturing: .captured, encoder: nil, storeDirectory: blocker.appendingPathComponent("store")).run()
-
-        #expect(outcome == .clipboardFailed)
+        #expect(copyingOriginals.run() == .clipboardFailed)
         #expect(pasteboard.changeCount == changeCount)
-        #expect(pasteboard.string(forType: .string) == "previous")
+        #expect(storedFiles().count == 2)
+        #expect(FileManager.default.fileExists(atPath: earlier.path))
+    }
+
+    @Test func theLockIsHeldWhileTheRunIsInProgress() {
+        defer { pasteboard.releaseGlobally() }
+        var acquisitionDuringCapture: RunLock.Acquisition?
+        var probing = snip(capturing: .cancelled)
+        probing.capture = { [lockFile] _ in
+            acquisitionDuringCapture = RunLock.acquire(at: lockFile)
+            return .cancelled
+        }
+
+        _ = probing.run()
+
+        guard case .heldByAnotherRun? = acquisitionDuringCapture else {
+            Issue.record("expected the lock to be held during the capture, got \(String(describing: acquisitionDuringCapture))")
+            return
+        }
     }
 
     @Test func aRunInProgressTurnsTheNextOneAwayBeforeCapturing() {

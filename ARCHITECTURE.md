@@ -94,13 +94,13 @@ try FileManager.default.moveItem(at: file, to: destination)
 
 ```swift
 guard let stored = try? store.add(file, fileExtension: imageType.fileExtension),
-      (try? clipboard.publish(stored, as: imageType)) != nil
+      clipboard.publish(stored, as: imageType)
 else { return false }
 ```
 
-Read that as: store the file, then put it on the clipboard; if either step fails for any reason, report that publishing did not work.
+Read that as: store the file, then put it on the clipboard; if storing fails for any reason, or the clipboard write does not succeed, report that publishing did not work.
 
-Functions that can only succeed or fail, with nothing useful to say about why, skip errors altogether. `optimize` returns an optional image and `makeSRGBCopy` returns a `Bool`.
+Functions that can only succeed or fail, with nothing useful to say about why, skip errors altogether. `optimize` returns an optional image, and `makeSRGBCopy` and `Clipboard.publish` return a `Bool`.
 
 ### `guard` and early exit
 
@@ -152,7 +152,7 @@ Turn each directory into a candidate path, then return the first one that passes
 A `URL` says where something is. In osnip it is nearly always a file on disk, written `file:///Users/you/…` when turned into text. A `Data` is a block of raw bytes in memory. `Clipboard.publish` uses both: it puts the file's `URL` on the pasteboard so apps can find the file, and it reads the file into a `Data` so apps that want the image itself get its bytes.
 
 ```swift
-let imageBytes = try Data(contentsOf: file)
+guard let imageBytes = try? Data(contentsOf: file) else { return false }
 item.setString(file.absoluteString, forType: .fileURL)
 item.setData(imageBytes, forType: imageType.pasteboardType)
 ```

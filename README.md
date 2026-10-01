@@ -71,7 +71,7 @@ macOS asks you to confirm this permission again from time to time. That is norma
 
 Do this once after installing. It covers the parts no automated test can reach.
 
-- [ ] The hotkey opens the crosshair.
+- [ ] Raycast is allowed under Screen & System Audio Recording, and the hotkey opens the crosshair.
 - [ ] Escape shows nothing and leaves your clipboard as it was.
 - [ ] A snip shows `Copied · … → … (−…%)` and pastes as an image.
 - [ ] The pasted file is the small one. In your notes app, export or locate the attachment and compare it with the newest file in `~/Library/Caches/osnip/`:

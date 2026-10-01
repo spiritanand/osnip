@@ -48,7 +48,7 @@ let kilobytes = max(1, Int((Double(bytes) / 1000).rounded()))
 Swift functions name their arguments at the call site. An underscore means "no label here".
 
 ```swift
-public func add(_ file: URL, fileExtension: String, capturedAt date: Date = Date()) throws -> URL
+func add(_ file: URL, fileExtension: String, capturedAt date: Date = Date()) throws -> URL
 ```
 
 You call it as `store.add(file, fileExtension: "webp")`. The third argument has a default value, so you can leave it out. `capturedAt` is the label the caller writes and `date` is the name used inside the function. `-> URL` is the return type.
@@ -77,7 +77,7 @@ An enum with no cases, like `ByteCount` or `Shell`, is used as a plain namespace
 A type followed by `?` may hold a value or nothing (`nil`). `URL?` is "a URL or nothing". Swift will not let you use an optional as if it were always there. You unwrap it first:
 
 ```swift
-guard let cwebp = locateEncoder() else { throw OptimizationError.encoderNotFound }
+guard let cwebp = locateEncoder() else { return nil }
 ```
 
 `guard let` says: if there is a value, call it `cwebp` and continue; otherwise leave. Related tools you will see are `if let`, `??` (use this fallback when nil), and `?.` (keep going only if there is a value).
@@ -87,18 +87,20 @@ guard let cwebp = locateEncoder() else { throw OptimizationError.encoderNotFound
 A function marked `throws` can fail. You must write `try` in front of each call that can fail.
 
 ```swift
-let stored = try store.add(file, fileExtension: fileExtension)
+try FileManager.default.moveItem(at: file, to: destination)
 ```
 
 `try?` turns a failure into `nil` instead of an error. osnip uses it where the reaction to every kind of failure is the same:
 
 ```swift
-guard let optimized = try? optimize(original, in: workDirectory) else {
-    return publish(original, fileExtension: "png", as: .png) ? .copiedOriginal : .clipboardFailed
-}
+guard let stored = try? store.add(file, fileExtension: imageType.fileExtension),
+      (try? clipboard.publish(stored, as: imageType)) != nil
+else { return false }
 ```
 
-Read that as: try to optimize; if anything at all goes wrong, copy the original instead.
+Read that as: store the file, then put it on the clipboard; if either step fails for any reason, report that publishing did not work.
+
+Functions that can only succeed or fail, with nothing useful to say about why, skip errors altogether. `optimize` returns an optional image and `makeSRGBCopy` returns a `Bool`.
 
 ### `guard` and early exit
 
@@ -117,8 +119,8 @@ defer { try? FileManager.default.removeItem(at: workDirectory) }
 A closure is a function you can store in a variable or pass along. Its type is written `(Input) -> Output`. This is the single most important idea for understanding `Snip`:
 
 ```swift
-public var capture: (URL) -> CaptureResult
-public var screenRecordingIsGranted: () -> Bool
+var capture: (URL) -> CaptureResult
+var screenRecordingIsGranted: () -> Bool
 ```
 
 `Snip` does not call `screencapture` itself. It calls whatever `capture` function it was given. The real program gives it the real one in `Snip.live()`. The tests give it a fake that copies a prepared image into place. That is how the whole flow is tested without a person dragging a rectangle.
@@ -145,9 +147,19 @@ Turn each directory into a candidate path, then return the first one that passes
 
 `"\(kilobytes) KB"` inserts a value into a string.
 
+### `URL` and `Data`
+
+A `URL` says where something is. In osnip it is nearly always a file on disk, written `file:///Users/you/…` when turned into text. A `Data` is a block of raw bytes in memory. `Clipboard.publish` uses both: it puts the file's `URL` on the pasteboard so apps can find the file, and it reads the file into a `Data` so apps that want the image itself get its bytes.
+
+```swift
+let imageBytes = try Data(contentsOf: file)
+item.setString(file.absoluteString, forType: .fileURL)
+item.setData(imageBytes, forType: imageType.pasteboardType)
+```
+
 ### `public`, `private`, `static`
 
-`public` makes something visible outside the library, which the program target needs. `private` hides it inside its file or type. With no keyword, it is visible inside the library and to the tests. `static` means the function or value belongs to the type itself rather than to an instance, so you call `ByteCount.formatted(1234)` without creating a `ByteCount`.
+`public` makes something visible outside the library. Only what the program in `main.swift` needs is public: `Snip`, `Outcome`, `Invocation` and the version. `private` hides something inside its file or type. With no keyword, it is visible inside the library and to the tests, which is the right level for everything else. `static` means the function or value belongs to the type itself rather than to an instance, so you call `ByteCount.formatted(1234)` without creating a `ByteCount`.
 
 ### Running other programs
 
@@ -163,9 +175,9 @@ All paths are under `Sources/OsnipCore/` unless noted.
 
 **`Sources/osnip/main.swift`** is the program. It turns the arguments into an `Invocation`, and for a plain `osnip` it runs `Snip.live().run()`, prints the outcome's line if there is one, and exits with the outcome's code.
 
-**`Invocation.swift`** maps arguments to intent: no arguments means snip, `--version` and `--help` print, anything else is rejected with exit code 64.
+**`Invocation.swift`** maps arguments to intent: no arguments means snip, `--version` and `--help` print, anything else is rejected with `EX_USAGE`, the conventional exit code 64 for a command used wrongly.
 
-**`Snip.swift`** is the conductor. `run()` takes the lock, creates a temporary work directory, calls the capture, and branches on the result. `publishCapture` tries to optimize; if that fails it falls back to the original PNG. `publish` stores a file, puts it on the clipboard and prunes. Every path ends in an `Outcome`. `Snip.live()` builds the real configuration.
+**`Snip.swift`** is the conductor. `run()` takes the lock, creates a temporary work directory, calls the capture, and branches on the result. `publishCapture` tries to optimize; `optimize` returns nothing when any step of it fails, and then the original PNG is copied instead. `publish` stores a file, puts it on the clipboard and prunes. Every path ends in an `Outcome`. `Snip.live()` builds the real configuration.
 
 **`Outcome.swift`** lists everything a run can end as, with the exact line Raycast shows and the exit code. The wording lives in this one place.
 

@@ -2,9 +2,8 @@ import Foundation
 
 public struct Snip {
     var capture: (URL) -> CaptureResult
-    var locateEncoder: () -> URL?
+    var cwebp: URL?
     var normalizer: ColorNormalizer
-    var budgetBytes: Int
     var store: CaptureStore
     var clipboard: Clipboard
     var lockFile: URL
@@ -14,9 +13,8 @@ public struct Snip {
     public static func live() -> Snip {
         Snip(
             capture: { ScreenCapture().captureInteractively(to: $0) },
-            locateEncoder: { ToolLocator.locate("cwebp") },
+            cwebp: ToolLocator.locate("cwebp"),
             normalizer: ColorNormalizer(),
-            budgetBytes: WebPEncoder.defaultBudgetBytes,
             store: CaptureStore(),
             clipboard: Clipboard(),
             lockFile: RunLock.defaultFile,
@@ -69,10 +67,10 @@ public struct Snip {
     }
 
     private func optimize(_ original: URL, in workDirectory: URL) -> EncodedImage? {
-        guard let cwebp = locateEncoder() else { return nil }
+        guard let cwebp else { return nil }
         let normalized = workDirectory.appendingPathComponent("srgb.png")
         guard normalizer.makeSRGBCopy(of: original, at: normalized) else { return nil }
-        return WebPEncoder(cwebp: cwebp, budgetBytes: budgetBytes).race(normalized, in: workDirectory).winner
+        return WebPEncoder(cwebp: cwebp).race(normalized, in: workDirectory).winner
     }
 
     private func publish(_ file: URL, as imageType: Clipboard.ImageType) -> Bool {

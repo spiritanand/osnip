@@ -35,7 +35,6 @@ struct SnipTests {
         normalizer: ColorNormalizer = ColorNormalizer(),
         storeDirectory: URL? = nil,
         keptCaptures: Int = CaptureStore.defaultKeptCaptures,
-        budgetBytes: Int = WebPEncoder.defaultBudgetBytes,
         screenRecordingGranted: Bool = true
     ) -> Snip {
         Snip(
@@ -44,9 +43,8 @@ struct SnipTests {
                 if result == .captured { try? FileManager.default.copyItem(at: fixture, to: destination) }
                 return result
             },
-            locateEncoder: { encoder },
+            cwebp: encoder,
             normalizer: normalizer,
-            budgetBytes: budgetBytes,
             store: CaptureStore(directory: storeDirectory ?? self.storeDirectory, keptCaptures: keptCaptures),
             clipboard: Clipboard(pasteboard: pasteboard),
             lockFile: lockFile,
@@ -98,19 +96,6 @@ struct SnipTests {
 
         let stored = try Fixture.storedPixel(of: try #require(storedFiles().first), x: 32, y: 24).color
         #expect(Fixture.channelsAreClose(stored, try Fixture.sRGBEquivalent(ofDisplayP3: displayP3Color)))
-    }
-
-    @Test func anImpossibleBudgetStillCopiesTheSmallestResult() throws {
-        defer { pasteboard.releaseGlobally() }
-
-        let outcome = snip(capturing: .captured, budgetBytes: 10).run()
-
-        guard case let .copied(_, optimizedBytes) = outcome else {
-            Issue.record("expected a copy, got \(outcome)")
-            return
-        }
-        #expect(optimizedBytes > 10)
-        #expect(storedFiles().map(\.pathExtension) == ["webp"])
     }
 
     @Test func olderCapturesArePrunedAfterASuccessfulCopy() throws {

@@ -1,6 +1,8 @@
 class Osnip < Formula
   desc "Snip a screen region to a WebP under 100 KB, straight to the clipboard"
   homepage "https://github.com/spiritanand/osnip"
+  url "https://github.com/spiritanand/osnip/archive/refs/tags/v0.1.0.tar.gz"
+  sha256 "a2f5e334cf45064b7827a30602e2d02917ff545f5745e3986d0e329e80ec9709"
   license "MIT"
   head "https://github.com/spiritanand/osnip.git", branch: "main"
 

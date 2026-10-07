@@ -23,10 +23,8 @@ A macOS screenshot of a normal window is often 500 KB to several megabytes as PN
 ## Install
 
 ```
-brew install --HEAD spiritanand/tap/osnip
+brew install spiritanand/tap/osnip
 ```
-
-`--HEAD` builds the newest commit. It is required until osnip has its first tagged release; from then on plain `brew install spiritanand/tap/osnip` works.
 
 This builds osnip from source with the Swift toolchain that ships with the Xcode Command Line Tools, and installs `cwebp` (Homebrew's `webp` formula) as a dependency.
 
